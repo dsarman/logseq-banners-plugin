@@ -45,6 +45,7 @@ let oldWidgetsConfig: WidgetsConfig;
 let isWidgetsCustomCodeChanged: boolean;
 let isWidgetsWeatherChanged: boolean;
 let hidePluginProps: boolean;
+let namespacesEnabled: boolean;
 let additionalSettings: any;
 
 const pluginPageProps: Array<string> = ['banner', 'banner-align','page-icon', 'icon'];
@@ -279,6 +280,13 @@ const settingsArray: SettingSchemaDesc[] = [
     default: null
   },
   {
+    key: 'namespacesEnabled',
+    title: 'Inherit page config from namespace?',
+    description: '',
+    type: 'boolean',
+    default: true,
+  },
+  {
     key: 'customPropsConfig',
     title: 'Custom pages banners and icons config',
     description: '',
@@ -362,6 +370,7 @@ export const readPluginSettings = () => {
       journalBannerAlign: defaultConfig.journal.bannerAlign,
       defaultJournalIcon: defaultConfig.journal.pageIcon,
       journalIconWidth: defaultConfig.journal.iconWidth,
+      namespacesEnabled,
       customPropsConfig,
       additional: additionalSettings
     } = logseq.settings);
@@ -474,13 +483,18 @@ const getPageAssetsData = async (): Promise<AssetData> => {
     console.debug(`#${pluginId}: Journal page`);
     return pageAssetsData;
   }
+  let namespaceAssetData = {};
+  if (namespacesEnabled) {
+    // namespace data ?
+    namespaceAssetData = await getNamespaceAssetData(currentPageData);
+  }
   // common page?
   console.debug(`#${pluginId}: Trying page props`);
   currentPageProps = currentPageData.properties;
   if (currentPageProps) {
     // get custom config, override it with high proirity page props
     const customAssetData = getCustomAssetData(currentPageProps);
-    pageAssetsData = { ...defaultConfig.page, ...customAssetData, ...currentPageProps }
+    pageAssetsData = { ...defaultConfig.page, ...namespaceAssetData, ...customAssetData, ...currentPageProps }
   } else {
     console.debug(`#${pluginId}: Default page`);
     pageAssetsData = { ...defaultConfig.page };
@@ -523,6 +537,21 @@ const getCustomAssetData = (currentPageProps: any) => {
   }
   return customAssetData;
 }
+
+// Read data from parent namespace
+const getNamespaceAssetData = async (currentPageData: any) => {
+  console.info(`#${pluginId}: Trying namespace`);
+  let customNamesAssetData = {};
+  const namespace = currentPageData?.namespace;
+  if (namespace) {
+    const namespacePage = await logseq.Editor.getPage(namespace.id);
+    if (namespacePage) {
+      const namespacePageProps = namespacePage?.properties;
+      customNamesAssetData = { ...namespacePageProps };
+    }
+  }
+  return customNamesAssetData;
+};
 
 const cleanBannerURL = (url: string) => {
   // remove surrounding quotations if present
